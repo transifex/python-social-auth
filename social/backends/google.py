@@ -12,7 +12,10 @@ class BaseGoogleAuth(object):
     def get_user_id(self, details, response):
         """Use google email as unique id"""
         if self.setting('USE_UNIQUE_USER_ID', False):
-            return response['id']
+            if 'sub' in response:
+                return response['sub']
+            else:
+                return response['id']
         else:
             return details['email']
 
@@ -20,24 +23,14 @@ class BaseGoogleAuth(object):
         """Return user details from Google API account"""
         if 'email' in response:
             email = response['email']
-        elif 'emails' in response:
-            email = response['emails'][0]['value']
         else:
             email = ''
 
-        if isinstance(response.get('name'), dict):
-            names = response.get('name') or {}
-            name, given_name, family_name = (
-                response.get('displayName', ''),
-                names.get('givenName', ''),
-                names.get('familyName', '')
-            )
-        else:
-            name, given_name, family_name = (
-                response.get('name', ''),
-                response.get('given_name', ''),
-                response.get('family_name', '')
-            )
+        name, given_name, family_name = (
+            response.get('name', ''),
+            response.get('given_name', ''),
+            response.get('family_name', ''),
+        )
 
         fullname, first_name, last_name = self.get_user_names(
             name, given_name, family_name
@@ -64,14 +57,13 @@ class BaseGoogleOAuth2API(BaseGoogleAuth):
 
     def user_data(self, access_token, *args, **kwargs):
         """Return user data from Google API"""
-        if self.setting('USE_DEPRECATED_API', False):
-            url = 'https://www.googleapis.com/oauth2/v1/userinfo'
-        else:
-            url = 'https://www.googleapis.com/plus/v1/people/me'
-        return self.get_json(url, params={
-            'access_token': access_token,
-            'alt': 'json'
-        })
+        return self.get_json(
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            params={
+                'access_token': access_token,
+                'alt': 'json'
+            }
+        )
 
     def revoke_token_params(self, token, uid):
         return {'token': token}
@@ -91,10 +83,6 @@ class GoogleOAuth2(BaseGoogleOAuth2API, BaseOAuth2):
     REVOKE_TOKEN_METHOD = 'GET'
     # The order of the default scope is important
     DEFAULT_SCOPE = ['openid', 'email', 'profile']
-    DEPRECATED_DEFAULT_SCOPE = [
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile'
-    ]
     EXTRA_DATA = [
         ('refresh_token', 'refresh_token', True),
         ('expires_in', 'expires'),
@@ -114,11 +102,6 @@ class GooglePlusAuth(BaseGoogleOAuth2API, BaseOAuth2):
     DEFAULT_SCOPE = [
         'https://www.googleapis.com/auth/plus.login',
         'https://www.googleapis.com/auth/plus.me',
-    ]
-    DEPRECATED_DEFAULT_SCOPE = [
-        'https://www.googleapis.com/auth/plus.login',
-        'https://www.googleapis.com/auth/userinfo.email',
-        'https://www.googleapis.com/auth/userinfo.profile'
     ]
     EXTRA_DATA = [
         ('id', 'user_id'),
@@ -140,7 +123,7 @@ class GooglePlusAuth(BaseGoogleOAuth2API, BaseOAuth2):
         if 'access_token' in self.data:  # Client-side workflow
             token = self.data.get('access_token')
             response = self.get_json(
-                'https://www.googleapis.com/oauth2/v1/tokeninfo',
+                'https://www.googleapis.com/oauth2/v3/tokeninfo',
                 params={'access_token': token}
             )
             self.process_error(response)
