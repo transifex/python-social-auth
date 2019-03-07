@@ -57,7 +57,7 @@ class BaseAuth(object):
         Call this method on any override of auth_complete."""
         pass
 
-    def authenticate(self, *args, **kwargs):
+    def authenticate(self, request, *args, **kwargs):
         """Authenticate user using social credentials
 
         Authentication is made if this is the correct backend, backend
